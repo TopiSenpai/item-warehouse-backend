@@ -1,0 +1,6 @@
+.history/
+.gradle/
+.idea/
+build/
+config.yml
+.idea
