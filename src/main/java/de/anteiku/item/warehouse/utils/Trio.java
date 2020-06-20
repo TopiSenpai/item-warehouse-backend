@@ -1,4 +1,4 @@
-package de.anteiku.item.warehouse;
+package de.anteiku.item.warehouse.utils;
 
 public class Trio<A, B, C>{
 

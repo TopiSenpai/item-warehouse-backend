@@ -1,6 +1,5 @@
-package de.anteiku.item.warehouse;
+package de.anteiku.item.warehouse.utils;
 
-import de.anteiku.item.warehouse.database.SQL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

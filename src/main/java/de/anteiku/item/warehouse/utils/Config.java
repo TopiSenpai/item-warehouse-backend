@@ -1,4 +1,4 @@
-package de.anteiku.item.warehouse;
+package de.anteiku.item.warehouse.utils;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

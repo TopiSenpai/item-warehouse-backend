@@ -1,8 +1,6 @@
-CREATE TABLE IF NOT EXISTS warehouse_items (
-    wi_item SERIAL NOT NULL,
-    wi_owner int NOT NULL,
-    wi_name varchar(255) NOT NULL,
-    wi_description varchar(255) NOT NULL,
-    wi_category varchar(255) NOT NULL,
-    PRIMARY KEY(wi_item)
+CREATE TABLE IF NOT EXISTS warehouse_categories (
+    wc_id SERIAL NOT NULL,
+    wc_warehouse int NOT NULL,
+    wc_name int NOT NULL,
+    PRIMARY KEY(wc_id, wc_warehouse)
 );

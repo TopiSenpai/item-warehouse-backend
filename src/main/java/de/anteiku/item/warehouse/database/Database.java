@@ -1,20 +1,11 @@
-package de.anteiku.item.warehouse;
+package de.anteiku.item.warehouse.database;
 
-import com.zaxxer.hikari.HikariDataSource;
-import de.anteiku.item.warehouse.database.SQL;
+import de.anteiku.item.warehouse.utils.Trio;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
-import java.security.spec.InvalidKeySpecException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Optional;
 
 public class Database{
 
@@ -32,6 +23,19 @@ public class Database{
 			LOG.error("Error while getting login information", e);
 		}
 		return null;
+	}
+
+	public static int getUserWarehousePermission(int warehouseId, int userId){
+		var result = SQL.query("SELECT wup_permissions FROM warehouse_user_permissions WHERE wup_warehouse = '" + warehouseId + "' AND wup_user = '" + userId + "'");
+		try{
+			if(result.next()){
+				return result.getInt("wup_permissions");
+			}
+		}
+		catch(SQLException e){
+			LOG.error("Error while getting warehouse permissions", e);
+		}
+		return -1;
 	}
 
 	public static String generate(int length){
@@ -63,7 +67,7 @@ public class Database{
 		return SQL.execute("DELETE FROM sessions WHERE session_id = '" + sessionId + "';");
 	}
 
-	public static int getSession(String sessionId){
+	public static int getUserFromSession(String sessionId){
 		ResultSet result = SQL.query("SELECT * FROM sessions WHERE session_id = '" + sessionId + "';");
 		try{
 			if(result.next()){

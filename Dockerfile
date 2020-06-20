@@ -6,9 +6,9 @@ RUN gradle build --warning-mode all
 
 FROM openjdk:11-jdk-slim-buster
 
-WORKDIR /home/kittybot
+WORKDIR /home/itemwarehouse
 
-COPY --from=build /home/gradle/src/build/libs/KittyBot-*-all.jar KittyBot.jar
+COPY --from=build /home/gradle/src/build/libs/ItemWarehouse-*-all.jar ItemWarehouse.jar
 
 ENTRYPOINT ["java"]
-CMD ["-jar", "KittyBot.jar"]
+CMD ["-jar", "ItemWarehouse.jar"]

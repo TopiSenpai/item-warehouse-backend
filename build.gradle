@@ -1,0 +1,25 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'com.github.johnrengelman.shadow' version '6.0.0'
+}
+
+group 'de.anteiku'
+version '1.0-ALPHA'
+
+mainClassName = 'de.anteiku.item.warehouse.ItemWarehouse'
+compileJava.options.encoding = 'UTF-8'
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    implementation 'com.sparkjava:spark-core:2.9.1'
+    implementation 'ch.qos.logback:logback-classic:1.2.3'
+    implementation 'io.sentry:sentry-logback:1.7.30'
+    implementation 'org.postgresql:postgresql:42.2.13'
+    implementation 'org.yaml:snakeyaml:1.26'
+    implementation 'com.zaxxer:HikariCP:2.5.1'
+    implementation 'com.google.code.gson:gson:2.8.6'
+}
