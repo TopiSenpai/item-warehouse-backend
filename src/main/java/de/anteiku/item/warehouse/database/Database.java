@@ -25,11 +25,37 @@ public class Database{
 		return null;
 	}
 
+	public static int registerUser(String username, String hash, String salt){
+		var result = SQL.executeWithResult("INSERT INTO users (user_name, user_password, user_salt) VALUES ('" + username + "', '" + hash + "', '" + salt + "', )");
+		try{
+			if(result.next()){
+				return result.getInt("user_id");
+			}
+		}
+			catch(SQLException e){
+			LOG.error("Error while getting warehouse permissions", e);
+		}
+		return -1;
+	}
+
 	public static int getUserWarehousePermission(int warehouseId, int userId){
 		var result = SQL.query("SELECT wup_permissions FROM warehouse_user_permissions WHERE wup_warehouse = '" + warehouseId + "' AND wup_user = '" + userId + "'");
 		try{
 			if(result.next()){
 				return result.getInt("wup_permissions");
+			}
+		}
+		catch(SQLException e){
+			LOG.error("Error while getting warehouse permissions", e);
+		}
+		return -1;
+	}
+
+	public static int getWarehouses(int userId){
+		var result = SQL.query("SELECT * FROM warehouse_user_permissions WHERE wup_user = '" + userId + "'");
+		try{
+			if(result.next()){
+				result.getInt("wup_permissions");
 			}
 		}
 		catch(SQLException e){

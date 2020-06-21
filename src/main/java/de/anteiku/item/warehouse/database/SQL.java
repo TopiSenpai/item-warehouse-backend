@@ -58,6 +58,19 @@ public class SQL{
 		return false;
 	}
 
+	public static ResultSet executeWithResult(String query){
+		try{
+			LOG.debug(query);
+			var statement = getConnection().createStatement();
+			statement.executeUpdate(query, Statement.RETURN_GENERATED_KEYS);
+			return statement.getGeneratedKeys();
+		}
+		catch(SQLException e){
+			LOG.error("Error while executing sql command", e);
+		}
+		return null;
+	}
+
 	public static int update(String query){
 		try{
 			LOG.debug(query);

@@ -42,7 +42,7 @@ public class Password{
 
 		}
 		catch(NoSuchAlgorithmException | InvalidKeySpecException e){
-			LOG.error("Error while hasing password", e);
+			LOG.error("Error while hashing password", e);
 		}
 		finally{
 			spec.clearPassword();

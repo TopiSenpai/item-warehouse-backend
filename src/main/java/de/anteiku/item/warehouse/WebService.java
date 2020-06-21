@@ -39,6 +39,7 @@ public class WebService{
 		options("/*", this::cors);
 		before(this::corsHeaders);
 		post("/login", this::login);
+		post("/register", this::register);
 		path("/user", () -> {
 			before("/*", this::checkLogin);
 			get("/me", this::getUserInfo);
@@ -46,12 +47,13 @@ public class WebService{
 		path("/warehouses", () -> {
 			before("/*", (request, response) -> response.header("Content-Type", "application/json"));
 			before("/*", this::checkLogin);
-			path("/:warehosueId", () -> {
-				before("/*", this::checkWarehousePermissions);
+			path("/:warehouseId", () -> {
+				before("/*", this::checkWarehousePermissionView);
 				path("/items", () -> {
 					get("/get", () -> this::getWarehouseItems);
 					path("/:itemId", () -> {
 						get("/get", () -> this::getWarehouseItem);
+						before("/*", this::checkWarehousePermissionEdit);
 						post("/set", () -> this::setWarehouseItem);
 						delete("/delete", () -> this::deleteWarehouseItem);
 					});
@@ -78,6 +80,21 @@ public class WebService{
 		response.header("Access-Control-Allow-Headers", "Origin, Content-Type, X-Auth-Token");
 	}
 
+	private String register(Request request, Response response){
+		JsonObject json = JsonParser.parseString(request.body()).getAsJsonObject();
+		String username = json.get("username").getAsString();
+		String password = json.get("password").getAsString();
+		//TODO check username & password for stuff
+		String salt = Password.generateSalt(32);
+		String hash = Password.hashPassword(password, salt);
+		int userId = Database.registerUser(username, hash, salt);
+		if(userId == -1){
+			response.status(400);
+			return error("User could not created");
+		}
+		return response("session_id", generateSession(userId));
+	}
+
 	private String login(Request request, Response response){
 		JsonObject json = JsonParser.parseString(request.body()).getAsJsonObject();
 		String username = json.get("username").getAsString();
@@ -87,9 +104,13 @@ public class WebService{
 			response.status(401);
 			return error("password or username incorrect");
 		}
+		return response("session_id", generateSession(loginInfo.getA()));
+	}
+
+	private String generateSession(int userId){
 		var sessionId = Database.generateUniqueKey();
-		Database.addSession(loginInfo.getA(), sessionId);
-		return response("session_id", sessionId);
+		Database.addSession(userId, sessionId);
+		return sessionId;
 	}
 
 	private void checkLogin(Request request, Response response){
@@ -101,16 +122,30 @@ public class WebService{
 		}
 	}
 
-	private void checkWarehousePermissions(Request request, Response response){
+	private void checkWarehousePermission(Request request, Response response, int permission){
 		if(!request.requestMethod().equals("OPTIONS")){
 			String key = request.headers("Authorization");
-			if(Database.getUserWarehousePermission(Integer.parseInt(request.params(":warehouseId")), Database.getUserFromSession(key)) < 0){
+			if(Database.getUserWarehousePermission(Integer.parseInt(request.params(":warehouseId")), getUserFromRequest(request)) < 0){
 				halt(403, error("You have no permission to view this warehouse"));
 			}
 		}
 	}
 
+	private int getUserFromRequest(Request request){
+		return Database.getUserFromSession(request.headers("Authorization"));
+	}
+
+	private void checkWarehousePermissionView(Request request, Response response){
+		checkWarehousePermission(request, response, 0);
+	}
+
+	private void checkWarehousePermissionEdit(Request request, Response response){
+		checkWarehousePermission(request, response, 1);
+	}
+
 	private String getUserInfo(Request request, Response response){
+		var userId = getUserFromRequest(request);
+		Database.getWarehouses(userId);
 		return "";
 	}
 
