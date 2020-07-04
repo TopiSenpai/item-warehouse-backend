@@ -3,6 +3,8 @@ package de.anteiku.item.warehouse;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import de.anteiku.item.warehouse.database.Database;
+import de.anteiku.item.warehouse.objects.Warehouse;
+import de.anteiku.item.warehouse.objects.WarehouseItem;
 import de.anteiku.item.warehouse.utils.Config;
 import de.anteiku.item.warehouse.utils.Password;
 import org.slf4j.Logger;
@@ -12,6 +14,9 @@ import spark.Response;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Set;
 
 import static spark.Spark.*;
 import static spark.Spark.post;
@@ -38,24 +43,36 @@ public class WebService{
 		port(port);
 		options("/*", this::cors);
 		before(this::corsHeaders);
+		before("/*", (request, response) -> response.header("Content-Type", "application/json"));
 		post("/login", this::login);
 		post("/register", this::register);
-		path("/user", () -> {
-			before("/*", this::checkLogin);
-			get("/me", this::getUserInfo);
-		});
+		get("/me", this::me);
 		path("/warehouses", () -> {
-			before("/*", (request, response) -> response.header("Content-Type", "application/json"));
 			before("/*", this::checkLogin);
+			get("/", this::getWarehouses);
+			post("/", this::addWarehouse);
 			path("/:warehouseId", () -> {
 				before("/*", this::checkWarehousePermissionView);
+				path("/", () -> {
+					//post("/", this::addWarehouseItem);
+					before("/*", this::checkWarehousePermissionOwner);
+					//patch("/", this::changeWarehouse);
+					//delete("/", this::deleteWarehouse);
+				});
 				path("/items", () -> {
-					get("/get", () -> this::getWarehouseItems);
-					path("/:itemId", () -> {
-						get("/get", () -> this::getWarehouseItem);
+					path("/", () -> {
 						before("/*", this::checkWarehousePermissionEdit);
-						post("/set", () -> this::setWarehouseItem);
-						delete("/delete", () -> this::deleteWarehouseItem);
+						post("/", this::addWarehouseItem);
+						//patch("/", this::changeWarehouseItem);
+						//delete("/", this::deleteWarehouseItem);
+					});
+					get("/", this::getWarehouseItems);
+					//delete("/", this::deleteWarehouseItems);
+					path("/:itemId", () -> {
+						//get("/", this::getWarehouseItem);
+						before("/*", this::checkWarehousePermissionEdit);
+						//patch("/", this::setWarehouseItem);
+						//delete("/", this::deleteWarehouseItem);
 					});
 				});
 			});
@@ -78,6 +95,25 @@ public class WebService{
 		response.header("Access-Control-Allow-Origin", originUrl);
 		response.header("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS");
 		response.header("Access-Control-Allow-Headers", "Origin, Content-Type, X-Auth-Token");
+	}
+
+	private String generateSession(int userId){
+		var sessionId = Database.generateUniqueKey();
+		Database.addSession(sessionId, userId);
+		return sessionId;
+	}
+
+	private void checkLogin(Request request, Response response){
+		if(!request.requestMethod().equals("OPTIONS")){
+			String key = request.headers("Authorization");
+			if(key == null || !Database.sessionExists(key)){
+				halt(401, error("Please login to continue"));
+			}
+		}
+	}
+
+	private int getUserFromRequest(Request request){
+		return Database.getUserFromSession(request.headers("Authorization"));
 	}
 
 	private String register(Request request, Response response){
@@ -107,47 +143,104 @@ public class WebService{
 		return response("session_id", generateSession(loginInfo.getA()));
 	}
 
-	private String generateSession(int userId){
-		var sessionId = Database.generateUniqueKey();
-		Database.addSession(userId, sessionId);
-		return sessionId;
-	}
-
-	private void checkLogin(Request request, Response response){
-		if(!request.requestMethod().equals("OPTIONS")){
-			String key = request.headers("Authorization");
-			if(key == null || !Database.sessionExists(key)){
-				halt(401, error("Please login to continue"));
+	private String me(Request request, Response response){
+		int userId = getUserFromRequest(request);
+		String userName = Database.getUsername(userId);
+		var warehouses = Database.getWarehousesFromUserId(userId);
+		var warehouseStrings = new HashSet<String>();
+		if(warehouses != null){
+			for(Warehouse warehouse : warehouses){
+				warehouseStrings.add(String.format("{\"id\": %s, \"name\": \"%s\"}", warehouse.getId(), warehouse.getName()));
 			}
 		}
+		return "{\"username\": \"" + userName + "\", \"warehouses\": " + "[" + String.join(", ", warehouseStrings) + "]" + "}";
 	}
 
-	private void checkWarehousePermission(Request request, Response response, int permission){
-		if(!request.requestMethod().equals("OPTIONS")){
-			String key = request.headers("Authorization");
-			if(Database.getUserWarehousePermission(Integer.parseInt(request.params(":warehouseId")), getUserFromRequest(request)) < 0){
-				halt(403, error("You have no permission to view this warehouse"));
-			}
+	private String addWarehouse(Request request, Response response){
+		JsonObject json = JsonParser.parseString(request.body()).getAsJsonObject();
+		String warehouseName = json.get("warehouse_name").getAsString();
+		var userId = getUserFromRequest(request);
+		Warehouse warehouse = Database.addWarehouse(warehouseName, userId);
+		if(warehouse == null){
+			return error("Warehouse could not created");
 		}
+		return simpleResponse("warehosue", String.format("{\"id:\" %d, \"name:\" \"%s\"}", warehouse.getId(), warehouse.getName()));
 	}
 
-	private int getUserFromRequest(Request request){
-		return Database.getUserFromSession(request.headers("Authorization"));
+	private String getWarehouses(Request request, Response response){
+		var userId = getUserFromRequest(request);
+		var warehouses = Database.getWarehousesFromUserId(userId);
+		var warehouseStrings = new HashSet<String>();
+		if(warehouses == null){
+			return error("Error white getting warehouses");
+		}
+		for(Warehouse warehouse : warehouses){
+			warehouseStrings.add(String.format("{\"id\": %s, \"name\": \"%s\"}", warehouse.getId(), warehouse.getName()));
+		}
+		return arrayResponse("warehouses", String.join(", ", warehouseStrings));
+	}
+
+	private String getWarehouseItems(Request request, Response response){
+		int warehouseId = Integer.parseInt(request.params(":warehouseId"));
+		Set<WarehouseItem> items = Database.getWarehouseItems(warehouseId);
+		Set<String> itemStrings = new HashSet<>();
+		if(items == null){
+			return error("Error white getting warehouse items");
+		}
+		for(WarehouseItem item : items){
+			itemStrings.add(String.format("{\"id\": %d, \"warehouse_id\": %d, \"warehouse_name\": \"%s\", \"name\": \"%s\", \"owner_id\": %d, \"owner_name\": \"%s\"," +
+				"\"count\": %d, \"description\": \"%s\", \"storage_place\": \"%s\", \"category_id\": %d, \"category_name\": \"%s\", \"condition_id\": %d, \"condition_name\": \"%s\", " +
+				"\"image_path\": \"%s\", \"purchase_place\": \"%s\", \"purchase_price\": %d, \"purchase_date\": %d, \"updated_at\": %d, \"created_at\": %d, }", item.getId(),
+				item.getWarehouseId(), item.getWarehouseName(), item.getName(), item.getOwnerId(), item.getOwnerName(), item.getCount(), item.getDescription(), item.getStoragePlace(),
+				item.getCategoryId(), item.getCategoryName(), item.getConditionId(), item.getConditionName(), item.getImagePath(), item.getPurchasePlace(), item.getPurchasePrice(),
+				item.getPurchaseDate(), item.getUpdatedAt(), item.getCreatedAt()
+			));
+		}
+		return arrayResponse("warehosue_items", String.join(", ", itemStrings));
+	}
+
+	private String addWarehouseItem(Request request, Response response){
+		int warehouseId = Integer.parseInt(request.params(":warehouseId"));
+		JsonObject json = JsonParser.parseString(request.body()).getAsJsonObject();
+		String name = json.get("item_name").getAsString();
+		int count = json.get("item_count").getAsInt();
+		String description = json.get("item_description").getAsString();
+		String storagePlace = json.get("item_storage_place").getAsString();
+		int category = json.get("item_category").getAsInt();
+		int condition = json.get("item_condition").getAsInt();
+		String imagePath = json.get("item_imagePath").getAsString();
+		String purchasePlace = json.get("item_purchase_place").getAsString();
+		int purchasePrice = json.get("item_purchase_price").getAsInt();
+		long purchaseDate = json.get("item_purchase_date").getAsLong();
+		var userId = getUserFromRequest(request);
+		int itemId = Database.addWarehouseItem(warehouseId, userId, name, count, description, storagePlace, category, condition, imagePath, purchasePlace, purchasePrice, purchaseDate);
+		if(itemId == -1){
+			return error("WarehouseItem could not created");
+		}
+		return simpleResponse("warehosue_item", String.format("{\"id:\" %d, \"name:\" \"%s\"}", itemId, name));
+	}
+
+	/* Permission Check */
+
+	private void checkWarehousePermission(Request request, int permission){
+		if(!request.requestMethod().equals("OPTIONS") && Database.getUserWarehousePermission(Integer.parseInt(request.params(":warehouseId")), getUserFromRequest(request)) < permission){
+			halt(403, error("You don't have the required permission for this warehouse"));
+		}
 	}
 
 	private void checkWarehousePermissionView(Request request, Response response){
-		checkWarehousePermission(request, response, 0);
+		checkWarehousePermission(request, 0);
 	}
 
 	private void checkWarehousePermissionEdit(Request request, Response response){
-		checkWarehousePermission(request, response, 1);
+		checkWarehousePermission(request, 1);
 	}
 
-	private String getUserInfo(Request request, Response response){
-		var userId = getUserFromRequest(request);
-		Database.getWarehouses(userId);
-		return "";
+	private void checkWarehousePermissionOwner(Request request, Response response){
+		checkWarehousePermission(request, 2);
 	}
+
+	/* Result Parsing */
 
 	private String error(String error){
 		return "{\"error\": \"" + error + "\"}";
@@ -155,6 +248,14 @@ public class WebService{
 
 	private String response(String responseKey, String responseValue){
 		return "{\"" + responseKey + "\": \"" + responseValue + "\"}";
+	}
+
+	private String simpleResponse(String responseKey, String responseValue){
+		return "{\"" + responseKey + "\": " + responseValue + "}";
+	}
+
+	private String arrayResponse(String responseKey, String responseValue){
+		return "{\"" + responseKey + "\": [" + responseValue + "]}";
 	}
 
 	private String response(String responseKey, int responseValue){

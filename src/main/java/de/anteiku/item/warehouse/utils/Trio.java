@@ -2,9 +2,9 @@ package de.anteiku.item.warehouse.utils;
 
 public class Trio<A, B, C>{
 
-	private A a;
-	private B b;
-	private C c;
+	private final A a;
+	private final B b;
+	private final C c;
 
 	public Trio(A a, B b, C c){
 		this.a = a;
