@@ -1,87 +1,60 @@
 package de.anteiku.item.warehouse.database;
 
+import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 import de.anteiku.item.warehouse.utils.Config;
+import org.apache.commons.io.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import spark.utils.IOUtils;
-
 import java.io.IOException;
-import java.sql.*;
-import java.util.Objects;
+import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
 public class SQL{
 
 	private static final Logger LOG = LoggerFactory.getLogger(SQL.class);
 
-	private static HikariDataSource dataSource;
+	private static final HikariDataSource dataSource;
 
 	static{
-		try{
-			dataSource = new HikariDataSource();
-			dataSource.setDriverClassName("org.postgresql.Driver");
+		var config = new HikariConfig();
+		config.setDriverClassName("org.postgresql.Driver");
+		config.setJdbcUrl("jdbc:postgresql://" + Config.DB_HOST + ":" + Config.DB_PORT + "/" + Config.DB_DB);
+		config.setUsername(Config.DB_USER);
+		config.setPassword(Config.DB_PASSWORD);
 
-			dataSource.setJdbcUrl("jdbc:postgresql://" + Config.DB_HOST + ":" + Config.DB_PORT + "/" + Config.DB_DATABASE);
-			dataSource.setUsername(Config.DB_USER);
-			dataSource.setPassword(Config.DB_PASSWORD);
+		config.setMinimumIdle(80);
+		config.setMaximumPoolSize(90);
+		config.setConnectionTimeout(10000);
+		config.setIdleTimeout(600000);
+		config.setMaxLifetime(1800000);
 
-			dataSource.setMinimumIdle(100);
-			dataSource.setMaximumPoolSize(2000);
-			dataSource.setAutoCommit(true);
-			dataSource.setLoginTimeout(3);
-		}
-		catch(SQLException e) {
-			LOG.error("Error while initializing database connection", e);
-		}
+		dataSource = new HikariDataSource(config);
 	}
 
-	public static Connection getConnection() throws NullPointerException{
-		try{
-			return dataSource.getConnection();
-		}
-		catch(SQLException e){
-			LOG.error("Error while fetching connection from datasource", e);
-		}
-		throw new NullPointerException("Datasource returned empty connection");
+	public static void close(){
+		dataSource.close();
 	}
 
 	public static void createTable(String table){
 		try{
-			String sql = IOUtils.toString(Objects.requireNonNull(SQL.class.getClassLoader().getResourceAsStream("sql_tables/" + table + ".sql")));
+			String sql = IOUtils.toString(SQL.class.getClassLoader().getResourceAsStream("sql_tables/" + table + ".sql"), StandardCharsets.UTF_8.name());
 			LOG.info("Read sql table from resources: {}", table);
 			getConnection().createStatement().execute(sql);
 		}
-		catch(IOException | SQLException e){
+		catch(IOException e){
 			LOG.error("Error while reading sql table file: " + table, e);
 		}
+		catch(SQLException e){
+			LOG.error("Error while creating new table: " + table, e);
+		}
 	}
 
-	public static PreparedStatement prepStatement(String sql) throws NullPointerException{
-		try{
-			LOG.debug("prepareStatement sql: {}", sql);
-			return getConnection().prepareStatement(sql);
-		}
-		catch(SQLException e){
-			LOG.error("Error preparing statement", e);
-		}
-		catch(NullPointerException e){
-			LOG.error("Error connection is null", e);
-		}
-		throw new NullPointerException("Error getting preparedStatement");
-	}
-
-	public static PreparedStatement prepStatement(String sql, int resultSetType) throws NullPointerException{
-		try{
-			LOG.debug("prepareStatement sql: {}", sql);
-			return getConnection().prepareStatement(sql, resultSetType);
-		}
-		catch(SQLException e){
-			LOG.error("Error preparing statement", e);
-		}
-		catch(NullPointerException e){
-			LOG.error("Error connection is null", e);
-		}
-		throw new NullPointerException("Error getting preparedStatement");
+	public static Connection getConnection() throws SQLException{
+		return dataSource.getConnection();
 	}
 
 	public static boolean execute(PreparedStatement preparedStatement){
@@ -105,16 +78,6 @@ public class SQL{
 		return null;
 	}
 
-	public static ResultSet query(PreparedStatement preparedStatement){
-		try{
-			return preparedStatement.executeQuery();
-		}
-		catch(SQLException e){
-			LOG.error("Error query prepared statement", e);
-		}
-		return null;
-	}
-
 	public static int update(PreparedStatement preparedStatement){
 		try{
 			return preparedStatement.executeUpdate();
@@ -134,6 +97,16 @@ public class SQL{
 			LOG.error("Error exists prepared statement", e);
 		}
 		return false;
+	}
+
+	public static ResultSet query(PreparedStatement preparedStatement){
+		try{
+			return preparedStatement.executeQuery();
+		}
+		catch(SQLException e){
+			LOG.error("Error query prepared statement", e);
+		}
+		return null;
 	}
 
 }

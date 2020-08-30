@@ -17,7 +17,7 @@ public class Config{
 
 	public static String DB_HOST;
 	public static String DB_PORT;
-	public static String DB_DATABASE;
+	public static String DB_DB;
 	public static String DB_USER;
 	public static String DB_PASSWORD;
 
@@ -29,7 +29,7 @@ public class Config{
 			WEBSITE_URL = String.valueOf(config.get("website_url"));
 			DB_HOST = String.valueOf(config.get("db_host"));
 			DB_PORT = String.valueOf(config.get("db_port"));
-			DB_DATABASE = String.valueOf(config.get("db_database"));
+			DB_DB = String.valueOf(config.get("db_database"));
 			DB_USER = String.valueOf(config.get("db_user"));
 			DB_PASSWORD = String.valueOf(config.get("db_password"));
 		}

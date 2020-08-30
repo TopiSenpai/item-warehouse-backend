@@ -5,16 +5,14 @@ import de.anteiku.item.warehouse.objects.WarehouseItem;
 import de.anteiku.item.warehouse.utils.Trio;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 
 public class Database{
 
-	private static final Logger LOG = LoggerFactory.getLogger(SQL.class);
+	private static final Logger LOG = LoggerFactory.getLogger(Database.class);
 	private static final String CHARS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
 	public static void init(){
@@ -28,8 +26,8 @@ public class Database{
 	}
 
 	public static Trio<Integer, String, String> getUserLogin(String username){
-		var stmt = SQL.prepStatement("SELECT user_id, user_password, user_salt FROM users WHERE user_name = ?");
-		try{
+		var query = "SELECT user_id, user_password, user_salt FROM users WHERE user_name = ?";
+		try(var con = SQL.getConnection(); var stmt = con.prepareStatement(query)){
 			stmt.setString(1, username);
 			var result = SQL.query(stmt);
 			if(result != null && result.next()){
@@ -43,8 +41,8 @@ public class Database{
 	}
 
 	public static int registerUser(String username, String hash, String salt){
-		var stmt = SQL.prepStatement("INSERT INTO users (user_name, user_password, user_salt, user_updated_at, user_created_at) VALUES (?, ?, ?, ?, ?)", PreparedStatement.RETURN_GENERATED_KEYS);
-		try{
+		var query = "INSERT INTO users (user_name, user_password, user_salt, user_updated_at, user_created_at) VALUES (?, ?, ?, ?, ?)";
+		try(var con = SQL.getConnection(); var stmt = con.prepareStatement(query, PreparedStatement.RETURN_GENERATED_KEYS)){
 			var currentTimeMillis = System.currentTimeMillis();
 			stmt.setString(1, username);
 			stmt.setString(2, hash);
@@ -56,30 +54,30 @@ public class Database{
 				return result.getInt("user_id");
 			}
 		}
-		catch(SQLException | NullPointerException e){
+		catch(SQLException e){
 			LOG.error("Error while getting warehouse permissions", e);
 		}
 		return -1;
 	}
 
 	public static String getUsername(int userId){
-		var stmt = SQL.prepStatement("SELECT user_name FROM users WHERE user_id = ?");
-		try{
+		var query = "SELECT user_name FROM users WHERE user_id = ?";
+		try(var con = SQL.getConnection(); var stmt = con.prepareStatement(query)){
 			stmt.setInt(1, userId);
 			var result = SQL.query(stmt);
 			if(result != null && result.next()){
 				return result.getString("user_name");
 			}
 		}
-		catch(SQLException | NullPointerException e){
+		catch(SQLException e){
 			LOG.error("Error while getting user_name", e);
 		}
 		return null;
 	}
 
 	public static int getUserWarehousePermission(int warehouseId, int userId){
-		var stmt = SQL.prepStatement("SELECT wup_permissions FROM warehouse_user_permissions WHERE wup_warehouse = ? AND wup_user = ?");
-		try{
+		var query = "SELECT wup_permissions FROM warehouse_user_permissions WHERE wup_warehouse = ? AND wup_user = ?";
+		try(var con = SQL.getConnection(); var stmt = con.prepareStatement(query)){
 			stmt.setInt(1, warehouseId);
 			stmt.setInt(2, userId);
 			var result = SQL.query(stmt);
@@ -94,8 +92,8 @@ public class Database{
 	}
 
 	public static Set<Warehouse> getWarehousesFromUserId(int userId){
-		var stmt = SQL.prepStatement("SELECT * FROM warehouse_user_permissions JOIN warehouses ON wup_warehouse = warehouse_id WHERE wup_user = ?");
-		try{
+		var query = "SELECT * FROM warehouse_user_permissions JOIN warehouses ON wup_warehouse = warehouse_id WHERE wup_user = ?";
+		try(var con = SQL.getConnection(); var stmt = con.prepareStatement(query)){
 			stmt.setInt(1, userId);
 			var result = SQL.query(stmt);
 			var warehouses = new HashSet<Warehouse>();
@@ -104,18 +102,18 @@ public class Database{
 			}
 			return warehouses;
 		}
-		catch(SQLException | NullPointerException e){
+		catch(SQLException e){
 			LOG.error("Error while getting warehouse permissions", e);
 		}
 		return null;
 	}
 
 	public static Set<WarehouseItem> getWarehouseItems(int warehouseId){
-		var stmt = SQL.prepStatement("SELECT * FROM warehouse_items" +
+		var query = "SELECT * FROM warehouse_items" +
 				"JOIN warehouses ON wi_warehouse = warehouse_id" +
 				"JOIN users ON wi_owner = user_id" +
-				"WHERE wi_warehouse = ?");
-		try{
+				"WHERE wi_warehouse = ?";
+		try(var con = SQL.getConnection(); var stmt = con.prepareStatement(query)){
 			stmt.setInt(1, warehouseId);
 			var result = SQL.query(stmt);
 			var warehouseItems = new HashSet<WarehouseItem>();
@@ -129,16 +127,16 @@ public class Database{
 			}
 			return warehouseItems;
 		}
-		catch(SQLException | NullPointerException e){
+		catch(SQLException e){
 			LOG.error("Error while getting warehouse permissions", e);
 		}
 		return null;
 	}
 
 	public static Warehouse addWarehouse(String warehouseName, int userId){
-		var stmt = SQL.prepStatement("WITH new_warehouse AS (INSERT INTO warehouses (warehouse_name, warehouse_updated_at, warehouse_created_at) VALUES (?, ?, ?) RETURNING warehouse_id) " +
-			"INSERT INTO warehouse_user_permissions (wup_warehouse, wup_user, wup_permissions, wup_updated_at, wup_created_at) VALUES ((SELECT warehouse_id FROM new_warehouse), ?, ?, ?, ?)", PreparedStatement.RETURN_GENERATED_KEYS);
-		try{
+		var query = "WITH new_warehouse AS (INSERT INTO warehouses (warehouse_name, warehouse_updated_at, warehouse_created_at) VALUES (?, ?, ?) RETURNING warehouse_id)" +
+				"INSERT INTO warehouse_user_permissions (wup_warehouse, wup_user, wup_permissions, wup_updated_at, wup_created_at) VALUES ((SELECT warehouse_id FROM new_warehouse), ?, ?, ?, ?)";
+		try(var con = SQL.getConnection(); var stmt = con.prepareStatement(query)){
 			var currentTimeMillis = System.currentTimeMillis();
 			stmt.setString(1, warehouseName);
 			stmt.setLong(2, currentTimeMillis);
@@ -152,16 +150,16 @@ public class Database{
 				return new Warehouse(result.getInt(1), warehouseName);
 			}
 		}
-		catch(SQLException | NullPointerException e){
+		catch(SQLException e){
 			LOG.error("Error while adding warehouse", e);
 		}
 		return null;
 	}
 
 	public static int addWarehouseItem(int warehouseId, int userId, String name, int count, String description, String storagePlace, int category, int condition, String imagePath, String purchasePlace, int purchasePrice, long purchaseDate){
-		var stmt = SQL.prepStatement("INSERT INTO warehouse_items (wi_warehouse, wi_name, wi_owner, wi_count, wi_description, wi_storage_place, wi_category, wi_condition, wi_image_path," +
-				"wi_purchase_place, wi_purchase_price, wi_purchase_date, wi_updated_at, wi_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", PreparedStatement.RETURN_GENERATED_KEYS);
-		try{
+		var query = "INSERT INTO warehouse_items (wi_warehouse, wi_name, wi_owner, wi_count, wi_description, wi_storage_place, wi_category, wi_condition, wi_image_path,\" +\n" +
+					"wi_purchase_place, wi_purchase_price, wi_purchase_date, wi_updated_at, wi_created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+			try(var con = SQL.getConnection(); var stmt = con.prepareStatement(query)){
 			var currentTime = System.currentTimeMillis();
 			stmt.setInt(1, warehouseId);
 			stmt.setString(2, name);
@@ -182,7 +180,7 @@ public class Database{
 				return result.getInt(1);
 			}
 		}
-		catch(SQLException | NullPointerException e){
+		catch(SQLException e){
 			LOG.error("Error while adding warehouse", e);
 		}
 		return -1;
@@ -197,8 +195,8 @@ public class Database{
 	}
 
 	public static boolean addSession(String sessionId, int userId){
-		var stmt = SQL.prepStatement("INSERT INTO sessions (session_id, session_user_id, session_created_at) VALUES (?, ?, ?)");
-		try{
+		var query = "INSERT INTO sessions (session_id, session_user_id, session_created_at) VALUES (?, ?, ?)";
+		try(var con = SQL.getConnection(); var stmt = con.prepareStatement(query)){
 			stmt.setString(1, sessionId);
 			stmt.setInt(2, userId);
 			stmt.setLong(3, System.currentTimeMillis());
@@ -220,8 +218,8 @@ public class Database{
 	}
 
 	public static boolean sessionExists(String sessionId){
-		var stmt = SQL.prepStatement("SELECT * FROM sessions WHERE session_id = ?");
-		try{
+		var query = "SELECT * FROM sessions WHERE session_id = ?";
+		try(var con = SQL.getConnection(); var stmt = con.prepareStatement(query)){
 			stmt.setString(1, sessionId);
 			return SQL.exists(stmt);
 		}
@@ -232,8 +230,8 @@ public class Database{
 	}
 
 	public static boolean deleteSession(String sessionId){
-		var stmt = SQL.prepStatement("DELETE FROM sessions WHERE session_id = ?");
-		try{
+		var query = "DELETE FROM sessions WHERE session_id = ?";
+		try(var con = SQL.getConnection(); var stmt = con.prepareStatement(query)){
 			stmt.setString(1, sessionId);
 			return SQL.execute(stmt);
 		}
@@ -244,8 +242,8 @@ public class Database{
 	}
 
 	public static int getUserFromSession(String sessionId){
-		var stmt = SQL.prepStatement("SELECT * FROM sessions WHERE session_id = ?");
-		try{
+		var query = "SELECT * FROM sessions WHERE session_id = ?";
+		try(var con = SQL.getConnection(); var stmt = con.prepareStatement(query)){
 			stmt.setString(1, sessionId);
 			var result = SQL.query(stmt);
 			if(result != null && result.next()){

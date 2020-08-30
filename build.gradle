@@ -15,11 +15,12 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.sparkjava:spark-core:3.0.0'
+    implementation 'com.sparkjava:spark-core:2.9.2'
     implementation 'ch.qos.logback:logback-classic:1.2.3'
     implementation 'io.sentry:sentry-logback:1.7.30'
     implementation 'org.postgresql:postgresql:42.2.13'
     implementation 'org.yaml:snakeyaml:1.26'
     implementation 'com.zaxxer:HikariCP:2.5.1'
+    implementation 'commons-io:commons-io:2.7'
     implementation 'com.google.code.gson:gson:2.8.6'
 }
